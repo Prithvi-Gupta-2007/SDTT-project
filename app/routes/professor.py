@@ -7,8 +7,9 @@ from datetime import datetime, date, timedelta
 from app import db, socketio
 from app.models import (
     User, Professor, Student, ClassInstance, ClassSession, Enrollment, 
-    AttendanceRecord, Course, AcademicPeriod, Notification
+    AttendanceRecord, Course, AcademicPeriod, Notification, AttendanceAuditLog
 )
+
 from app.utils.qr_generator import QRCodeGenerator
 from app.utils.session_generator import generate_sessions_for_class
 from app.utils.reports import (
@@ -612,9 +613,12 @@ def session_detail(session_id):
                 'name': user.full_name,
                 'email': user.email,
                 'status': record.status,
+                'verification_method': record.verification_method or 'qr_standard',
+                'reason': record.status_change_reason or '',
                 'scanned_at': record.scanned_at,
                 'minutes_late': record.minutes_late
             })
+
     
     # Get enrolled students who haven't attended
     enrolled = Enrollment.query.filter_by(
@@ -864,28 +868,71 @@ def cancel_session(session_id):
 @login_required
 @professor_required
 def update_attendance(record_id):
-    """Update attendance status"""
+    """Update attendance status with audit logging"""
     record = AttendanceRecord.query.get_or_404(record_id)
     session = ClassSession.query.get(record.session_id)
     ci = session.class_instance
     
     if ci.professor_id != current_user.id:
-        return jsonify({'success': False, 'error': 'Access denied'})
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
     
-    new_status = request.form.get('status')
-    reason = request.form.get('reason', '')
+    # Handle either JSON or form submission
+    req_data = request.get_json(silent=True) or request.form
+    new_status = req_data.get('status')
+    reason = req_data.get('reason', '').strip()
     
-    if new_status not in ['present', 'late', 'absent', 'excused']:
-        return jsonify({'success': False, 'error': 'Invalid status'})
+    if not new_status or new_status not in ['present', 'late', 'absent', 'excused']:
+        return jsonify({'success': False, 'error': 'Invalid status'}), 400
+        
+    if not reason:
+        return jsonify({'success': False, 'error': 'A specific reason is required for manual attendance changes.'}), 400
     
+    previous_status = record.status
     record.status = new_status
     record.status_changed_by = current_user.id
     record.status_changed_at = datetime.utcnow()
     record.status_change_reason = reason
+    record.verification_method = 'manual_override'
     
+    # Log audit entry
+    audit_log = AttendanceAuditLog(
+        attendance_id=record.id,
+        session_id=session.id,
+        student_id=record.student_id,
+        changed_by_user_id=current_user.id,
+        previous_status=previous_status,
+        new_status=new_status,
+        reason=reason,
+        ip_address=request.remote_addr
+    )
+    db.session.add(audit_log)
     db.session.commit()
     
-    return jsonify({'success': True, 'message': 'Attendance updated'})
+    # Notify live dashboard via Socket.IO
+    student = Student.query.filter_by(user_id=record.student_id).first()
+    student_user = User.query.get(record.student_id)
+    socketio.emit('attendance_update', {
+        'sessionId': session.id,
+        'studentId': record.student_id,
+        'status': new_status,
+        'scanned_at': record.scanned_at.isoformat() if record.scanned_at else datetime.utcnow().isoformat(),
+        'attendanceCount': session.attendance_count,
+        'newRecord': {
+            'id': record.id,
+            'name': student_user.full_name if student_user else 'Student',
+            'student_id': student.student_id if student else 'STU',
+            'status': new_status,
+            'verification_method': 'manual_override',
+            'time': datetime.now().strftime('%H:%M:%S')
+        }
+    }, room=f'session-{session.id}')
+    
+    return jsonify({
+        'success': True,
+        'message': f'Attendance updated to {new_status} with audit log saved.',
+        'audit_id': audit_log.id
+    })
+
 
 
 @professor_bp.route('/profile')
@@ -1090,6 +1137,29 @@ def export_report(class_id):
         return export_to_csv(data, f"{filename}.csv")
     else:
         return export_to_excel(data, f"{filename}.xlsx")
+
+
+@professor_bp.route('/reports/export-all')
+@login_required
+@professor_required
+def export_all_reports():
+    """Export attendance for all classes taught by this professor"""
+    format_type = request.args.get('format', 'csv')
+    class_instances = ClassInstance.query.filter_by(professor_id=current_user.id).all()
+    all_data = []
+    for ci in class_instances:
+        data = generate_attendance_report_data(class_id=ci.id)
+        all_data.extend(data)
+        
+    if not all_data:
+        flash('No attendance records found across classes', 'info')
+        return redirect(url_for('professor.reports'))
+        
+    filename = f"all_classes_attendance_{datetime.now().strftime('%Y%m%d')}"
+    if format_type == 'csv':
+        return export_to_csv(all_data, f"{filename}.csv")
+    return export_to_excel(all_data, f"{filename}.xlsx")
+
 
 
 @professor_bp.route('/reports/class/<class_id>')
@@ -1301,3 +1371,204 @@ def send_alerts(class_id):
     
     flash(f'Sent {sent_count} low attendance alerts', 'success')
     return redirect(url_for('professor.class_report', class_id=class_id))
+
+
+@professor_bp.route('/timetable')
+@login_required
+@professor_required
+def timetable():
+    """Professor weekly teaching timetable"""
+    class_instances = ClassInstance.query.filter_by(
+        professor_id=current_user.id,
+        is_active=True
+    ).all()
+    
+    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    schedule_by_day = {day: [] for day in weekdays}
+    
+    today = date.today()
+    today_name = today.strftime('%A')
+    
+    for ci in class_instances:
+        course = ci.course
+        days = ci.days_list
+        enrolled_count = Enrollment.query.filter_by(class_instance_id=ci.id, status='active').count()
+        
+        # Check today's session
+        today_session = ClassSession.query.filter_by(class_instance_id=ci.id, date=today).first()
+        
+        for day in days:
+            if day in schedule_by_day:
+                schedule_by_day[day].append({
+                    'class_id': ci.id,
+                    'code': course.code,
+                    'name': course.name,
+                    'section': ci.section_number,
+                    'room': ci.room_location or 'Main Hall',
+                    'start_time': ci.start_time,
+                    'end_time': ci.end_time,
+                    'enrolled_count': enrolled_count,
+                    'session_id': today_session.id if today_session else None,
+                    'session_status': today_session.status if today_session else 'not_scheduled',
+                    'is_today': (day == today_name)
+                })
+                
+    for day in weekdays:
+        schedule_by_day[day].sort(key=lambda x: x['start_time'])
+        
+    return render_template('professor/timetable.html',
+        schedule_by_day=schedule_by_day,
+        today_name=today_name,
+        weekdays=weekdays
+    )
+
+
+@professor_bp.route('/take-attendance')
+@login_required
+@professor_required
+def take_attendance():
+    """Quick launcher for professor to select a class and launch dynamic QR session"""
+    class_instances = ClassInstance.query.filter_by(
+        professor_id=current_user.id,
+        is_active=True
+    ).all()
+    
+    classes_data = []
+    today = date.today()
+    
+    for ci in class_instances:
+        course = ci.course
+        enrolled = Enrollment.query.filter_by(class_instance_id=ci.id, status='active').count()
+        today_session = ClassSession.query.filter_by(class_instance_id=ci.id, date=today).first()
+        
+        classes_data.append({
+            'id': ci.id,
+            'code': course.code,
+            'name': course.name,
+            'section': ci.section_number,
+            'schedule': f"{', '.join(ci.days_list)} {ci.start_time}-{ci.end_time}",
+            'room': ci.room_location,
+            'enrolled': enrolled,
+            'today_session': today_session
+        })
+        
+    return render_template('professor/take_attendance.html', classes=classes_data)
+
+
+@professor_bp.route('/take-attendance/start', methods=['POST'])
+@login_required
+@professor_required
+def start_attendance_session():
+    """Start an attendance session for a class instance and redirect to live QR view"""
+    class_id = request.form.get('class_id')
+    ci = ClassInstance.query.filter_by(id=class_id, professor_id=current_user.id).first_or_404()
+    
+    today = date.today()
+    
+    # Check if a session already exists for today
+    session = ClassSession.query.filter_by(class_instance_id=ci.id, date=today).first()
+    
+    if not session:
+        # Create today's session
+        session_count = ClassSession.query.filter_by(class_instance_id=ci.id).count()
+        session = ClassSession(
+            class_instance_id=ci.id,
+            session_number=session_count + 1,
+            date=today,
+            start_time=ci.start_time,
+            end_time=ci.end_time,
+            room_location=ci.room_location,
+            status='scheduled'
+        )
+        db.session.add(session)
+        db.session.flush()
+        
+    # Activate session using existing QR code generator
+    base_url = request.host_url.rstrip('/')
+    qr_data = QRCodeGenerator.generate_secure_qr(session.id, base_url)
+    
+    session.status = 'active'
+    session.is_active = True
+    session.qr_secret = qr_data['secret']
+    session.qr_expires_at = datetime.fromisoformat(qr_data['expires_at'])
+    session.updated_at = datetime.utcnow()
+    
+    enrolled = Enrollment.query.filter_by(class_instance_id=ci.id, status='active').count()
+    session.total_enrolled = enrolled
+    
+    db.session.commit()
+    
+    flash(f'Attendance session activated for {ci.course.code}! QR Code is rotating.', 'success')
+    return redirect(url_for('professor.session_detail', session_id=session.id))
+
+
+@professor_bp.route('/students')
+@login_required
+@professor_required
+def students_records():
+    """Professor student records and search"""
+    class_instances = ClassInstance.query.filter_by(professor_id=current_user.id, is_active=True).all()
+    class_ids = [ci.id for ci in class_instances]
+    
+    enrollments = Enrollment.query.filter(Enrollment.class_instance_id.in_(class_ids), Enrollment.status == 'active').all()
+    
+    student_records = []
+    seen_student_ids = set()
+    
+    for enr in enrollments:
+        if enr.student_id in seen_student_ids:
+            continue
+        seen_student_ids.add(enr.student_id)
+        
+        student = Student.query.filter_by(user_id=enr.student_id).first()
+        user = User.query.get(enr.student_id)
+        
+        if student and user:
+            # Overall attendance across this professor's classes
+            total_sessions = ClassSession.query.filter(
+                ClassSession.class_instance_id.in_(class_ids),
+                ClassSession.status == 'completed'
+            ).count()
+            
+            attended = db.session.query(AttendanceRecord).join(ClassSession).filter(
+                ClassSession.class_instance_id.in_(class_ids),
+                AttendanceRecord.student_id == user.id,
+                AttendanceRecord.status.in_(['present', 'late', 'excused'])
+            ).count()
+            
+            rate = round((attended / total_sessions * 100)) if total_sessions > 0 else 100
+            
+            student_records.append({
+                'id': user.id,
+                'student_id': student.student_id,
+                'name': user.full_name,
+                'email': user.email,
+                'major': student.major,
+                'attendance_rate': rate,
+                'attended': attended,
+                'total': total_sessions
+            })
+            
+    return render_template('professor/students.html', students=student_records)
+
+
+@professor_bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+@professor_required
+def settings():
+    """Professor attendance policy and threshold settings"""
+    if request.method == 'POST':
+        threshold = request.form.get('low_attendance_threshold')
+        if threshold:
+            try:
+                current_app.config['LOW_ATTENDANCE_THRESHOLD'] = int(threshold)
+                flash('Attendance settings updated successfully.', 'success')
+            except ValueError:
+                flash('Invalid threshold value.', 'error')
+                
+    return render_template('professor/settings.html',
+        threshold=current_app.config.get('LOW_ATTENDANCE_THRESHOLD', 75),
+        qr_rotation=current_app.config.get('QR_ROTATION_INTERVAL', 30),
+        qr_expiry=current_app.config.get('QR_EXPIRY_SECONDS', 90)
+    )
+

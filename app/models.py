@@ -34,6 +34,8 @@ class User(UserMixin, db.Model):
     student_profile = db.relationship('Student', backref='user', uselist=False, cascade='all, delete-orphan')
     professor_profile = db.relationship('Professor', backref='user', uselist=False, cascade='all, delete-orphan')
     notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+    webauthn_credentials = db.relationship('WebAuthnCredential', backref='user', lazy='dynamic', cascade='all, delete-orphan')
+
     
     def set_password(self, password):
         """Hash and set the password"""
@@ -233,6 +235,46 @@ class ClassSession(db.Model):
     
     # Relationships
     attendance_records = db.relationship('AttendanceRecord', backref='session', lazy='dynamic', cascade='all, delete-orphan')
+    early_verifications = db.relationship('EarlyBiometricVerification', backref='session', lazy='dynamic', cascade='all, delete-orphan')
+    audit_logs = db.relationship('AttendanceAuditLog', backref='session', lazy='dynamic', cascade='all, delete-orphan')
+
+    @property
+    def start_datetime(self):
+        """Get session start as datetime"""
+        try:
+            return datetime.combine(self.date, datetime.strptime(self.start_time, '%H:%M').time())
+        except Exception:
+            return None
+
+    @property
+    def end_datetime(self):
+        """Get session end as datetime"""
+        try:
+            return datetime.combine(self.date, datetime.strptime(self.end_time, '%H:%M').time())
+        except Exception:
+            return None
+
+    @property
+    def early_window_start(self):
+        """Get 5-minute early verification window start time"""
+        start = self.start_datetime
+        if start:
+            from datetime import timedelta
+            return start - timedelta(minutes=5)
+        return None
+
+    def is_early_verification_open(self, current_dt=None):
+        """Check if 5-minute early biometric verification window is open"""
+        if current_dt is None:
+            current_dt = datetime.now()
+        start = self.start_datetime
+        if not start:
+            return False
+        from datetime import timedelta
+        window_start = start - timedelta(minutes=5)
+        # Early window opens 5 mins before start until end of session or while active
+        window_end = self.end_datetime if self.end_datetime else (start + timedelta(hours=1))
+        return (window_start <= current_dt <= window_end) or self.status == 'active'
 
 
 class Enrollment(db.Model):
@@ -271,6 +313,7 @@ class AttendanceRecord(db.Model):
     device_fingerprint = db.Column(db.String(255))
     ip_address = db.Column(db.String(50))
     qr_secret_used = db.Column(db.String(255))
+    verification_method = db.Column(db.String(50), default='qr_standard')  # 'webauthn_early', 'webauthn_instant', 'qr_standard', 'manual_override'
     
     # Geolocation fields
     latitude = db.Column(db.Float)
@@ -283,6 +326,9 @@ class AttendanceRecord(db.Model):
     status_change_reason = db.Column(db.Text)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    audit_logs = db.relationship('AttendanceAuditLog', backref='attendance_record', lazy='dynamic', cascade='all, delete-orphan')
     
     __table_args__ = (
         db.UniqueConstraint('session_id', 'student_id', name='unique_attendance'),
@@ -303,3 +349,68 @@ class Notification(db.Model):
     extra_data = db.Column(db.Text)  # JSON data (renamed from metadata which is reserved)
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class WebAuthnCredential(db.Model):
+    """Registered WebAuthn credential (fingerprint/FIDO2 authenticator)"""
+    __tablename__ = 'webauthn_credentials'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
+    credential_id = db.Column(db.String(500), unique=True, nullable=False, index=True)
+    public_key = db.Column(db.Text, nullable=False)
+    sign_count = db.Column(db.Integer, default=0)
+    transports = db.Column(db.String(255))
+    nickname = db.Column(db.String(100), default='Biometric Authenticator')
+    aaguid = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+
+
+class EarlyBiometricVerification(db.Model):
+    """5-minute early biometric verification record bound to a class session"""
+    __tablename__ = 'early_biometric_verifications'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    student_id = db.Column(db.String(36), db.ForeignKey('students.user_id'), nullable=False, index=True)
+    session_id = db.Column(db.String(36), db.ForeignKey('class_sessions.id'), nullable=False, index=True)
+    credential_id = db.Column(db.String(500), nullable=False)
+    verified_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    status = db.Column(db.String(20), default='valid')  # 'valid', 'consumed', 'expired'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        db.UniqueConstraint('student_id', 'session_id', name='unique_student_session_verification'),
+    )
+
+
+class AttendanceAuditLog(db.Model):
+    """Audit trail for manual attendance adjustments"""
+    __tablename__ = 'attendance_audit_logs'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    attendance_id = db.Column(db.String(36), db.ForeignKey('attendance_records.id'), nullable=False)
+    session_id = db.Column(db.String(36), db.ForeignKey('class_sessions.id'), nullable=False)
+    student_id = db.Column(db.String(36), db.ForeignKey('students.user_id'), nullable=False)
+    changed_by_user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    previous_status = db.Column(db.String(20), nullable=False)
+    new_status = db.Column(db.String(20), nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    ip_address = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class WebAuthnChallenge(db.Model):
+    """Ephemeral challenge storage for registration and authentication"""
+    __tablename__ = 'webauthn_challenges'
+    
+    id = db.Column(db.String(36), primary_key=True, default=generate_uuid)
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    challenge = db.Column(db.String(255), nullable=False)
+    session_id = db.Column(db.String(36))
+    challenge_type = db.Column(db.String(50), nullable=False)  # 'registration', 'authentication', 'early_verification'
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+

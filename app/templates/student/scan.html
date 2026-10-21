@@ -1,168 +1,175 @@
 {% extends "base.html" %}
 
-{% block title %}Scan QR Code - Smart Attendance Management System{% endblock %}
+{% block title %}Scan QR Code - AttendX{% endblock %}
 
 {% block extra_head %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 {% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50 to-blue-50">
-    <!-- Enhanced Navigation -->
-    <nav class="bg-white shadow-lg border-b-4 border-purple-500 animate-fade-in-down">
+<div class="min-h-screen bg-slate-50 text-slate-800">
+    <!-- Header -->
+    <header class="bg-navy-900 text-white shadow-md border-b border-navy-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-20 items-center">
-                <div class="flex items-center">
-                    <a href="{{ url_for('student.dashboard') }}" class="text-gray-500 hover:text-purple-700 mr-4 transform hover:scale-110 transition duration-300">
-                        <i class="fas fa-arrow-left text-xl"></i>
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center space-x-3">
+                    <a href="{{ url_for('student.dashboard') }}" class="text-blue-200 hover:text-white mr-2 transition">
+                        <i class="fas fa-arrow-left text-lg"></i>
                     </a>
-                    <div class="bounce-in">
-                        <i class="fas fa-qrcode text-purple-600 text-3xl mr-3"></i>
+                    <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow">
+                        <i class="fas fa-qrcode"></i>
                     </div>
-                    <span class="text-gray-900 text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">Scan QR Code</span>
+                    <span class="text-xl font-bold tracking-tight">Attend<span class="text-blue-400">X</span> Scanner</span>
+                </div>
+                <div>
+                    <a href="{{ url_for('student.dashboard') }}" class="text-xs bg-navy-800 hover:bg-navy-700 text-blue-300 px-3 py-1.5 rounded-lg border border-navy-700 transition">
+                        Dashboard
+                    </a>
                 </div>
             </div>
         </div>
-    </nav>
+    </header>
 
-    <div class="max-w-4xl mx-auto px-4 py-10">
-        <!-- Enhanced Instructions Card -->
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-purple-100 p-8 mb-8 animate-fade-in-up card-hover">
-            <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-4 bounce-in">
-                    <i class="fas fa-info-circle text-white text-xl"></i>
-                </div>
-                How to Scan
+    <div class="max-w-3xl mx-auto px-4 py-8">
+        <!-- Scanner Instruction Card -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <h2 class="text-lg font-bold text-slate-900 mb-2 flex items-center">
+                <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                Scan Classroom Rotating QR
             </h2>
-            <ol class="list-decimal list-inside space-y-3 text-gray-700 text-lg">
-                <li class="flex items-start space-x-3 animate-fade-in-left stagger-delay-1">
-                    <span class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">1</span>
-                    <span>Allow camera access when prompted for scanning</span>
-                </li>
-                <li class="flex items-start space-x-3 animate-fade-in-left stagger-delay-2">
-                    <span class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">2</span>
-                    <span>Point your camera at the QR code displayed by your professor</span>
-                </li>
-                <li class="flex items-start space-x-3 animate-fade-in-left stagger-delay-3">
-                    <span class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">3</span>
-                    <span>Hold steady until the code is recognized automatically</span>
-                </li>
-                <li class="flex items-start space-x-3 animate-fade-in-left stagger-delay-4">
-                    <span class="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-bold text-sm">4</span>
-                    <span>Your attendance will be recorded instantly! ✅</span>
-                </li>
-            </ol>
+            <p class="text-xs text-slate-500 mb-4">
+                Point your phone camera directly at the professor's classroom screen. Dynamic QR codes rotate every 30 seconds for security.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center space-x-2.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">1</span>
+                    <span class="text-slate-700 font-medium">Allow camera access</span>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center space-x-2.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">2</span>
+                    <span class="text-slate-700 font-medium">Frame the QR code</span>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-lg border border-slate-100 flex items-center space-x-2.5">
+                    <span class="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">3</span>
+                    <span class="text-slate-700 font-medium">Instant attendance record</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Enhanced Scanner Area -->
-        <div class="bg-white rounded-2xl shadow-2xl border-2 border-purple-100 p-8 mb-8 animate-fade-in-up stagger-delay-1">
-            <div id="reader-container" class="relative">
-                <div id="reader" class="w-full aspect-square rounded-2xl overflow-hidden border-4 border-purple-200 shadow-inner"></div>
-                <div id="scanner-overlay" class="absolute inset-0 flex items-center justify-center bg-gray-900/70 rounded-2xl hidden backdrop-blur-sm">
+        <!-- Scanner Viewport Area -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+            <div id="reader-container" class="relative max-w-md mx-auto">
+                <div id="reader" class="w-full aspect-square rounded-xl overflow-hidden border-2 border-slate-200 bg-slate-900"></div>
+                <div id="scanner-overlay" class="absolute inset-0 flex items-center justify-center bg-navy-950/80 rounded-xl hidden backdrop-blur-sm">
                     <div class="text-center text-white">
-                        <div class="w-20 h-20 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                        <p class="text-xl font-semibold">Processing...</p>
+                        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                        <p class="text-sm font-semibold">Validating Rotating Token...</p>
                     </div>
                 </div>
             </div>
             
-            <div class="mt-6 flex justify-center space-x-4">
-                <button id="start-btn" onclick="startScanner()" 
-                    class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl hover:from-purple-700 hover:to-blue-700 transition duration-300 flex items-center text-lg font-bold shadow-xl transform hover:scale-110">
-                    <i class="fas fa-camera mr-3"></i> Start Camera
+            <div class="mt-5 flex justify-center space-x-3">
+                <button id="start-btn" onclick="startScanner()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition flex items-center">
+                    <i class="fas fa-camera mr-2"></i> Start Camera Scanner
                 </button>
-                <button id="stop-btn" onclick="stopScanner()" 
-                    class="bg-gradient-to-r from-gray-500 to-gray-600 text-white px-8 py-4 rounded-xl hover:from-gray-600 hover:to-gray-700 transition duration-300 flex items-center text-lg font-bold shadow-xl transform hover:scale-110 hidden">
-                    <i class="fas fa-stop mr-3"></i> Stop
+                <button id="stop-btn" onclick="stopScanner()" class="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2.5 rounded-lg text-sm font-bold shadow-sm transition flex items-center hidden">
+                    <i class="fas fa-stop mr-2"></i> Stop Camera
                 </button>
             </div>
         </div>
 
-        <!-- Enhanced Result Area -->
-        <div id="result-area" class="hidden animate-fade-in-up">
-            <div id="result-success" class="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-2xl p-8 shadow-xl hidden animate-zoom-in">
-                <div class="flex items-center mb-6">
-                    <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center mr-5 shadow-lg bounce-in">
-                        <i class="fas fa-check text-white text-3xl"></i>
+        <!-- Result Confirmation Banner -->
+        <div id="result-area" class="hidden mb-6">
+            <!-- Success State -->
+            <div id="result-success" class="bg-emerald-50 border-2 border-emerald-400 rounded-xl p-6 shadow-sm hidden">
+                <div class="flex items-start space-x-4">
+                    <div class="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center text-2xl shrink-0 shadow">
+                        <i class="fas fa-check"></i>
                     </div>
-                    <div>
-                        <h3 class="text-2xl font-bold text-green-800">Attendance Marked Successfully! ✅</h3>
-                        <p id="result-message" class="text-green-700 text-lg"></p>
+                    <div class="flex-1">
+                        <span class="px-2.5 py-0.5 bg-emerald-200 text-emerald-900 text-xs font-bold rounded uppercase tracking-wider">Confirmed</span>
+                        <h3 class="text-lg font-bold text-emerald-900 mt-1">Attendance Marked Successfully!</h3>
+                        <p id="result-message" class="text-sm text-emerald-800 mt-0.5"></p>
+                        
+                        <div id="result-details" class="bg-white rounded-lg p-4 mt-4 border border-emerald-200 text-xs text-slate-700 space-y-1.5 shadow-sm">
+                            <!-- Details inserted via JavaScript -->
+                        </div>
+
+                        <div class="mt-4">
+                            <a href="{{ url_for('student.dashboard') }}" class="inline-block px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                                ← Return to Dashboard
+                            </a>
+                        </div>
                     </div>
-                </div>
-                <div id="result-details" class="bg-white rounded-xl p-6 mt-6 shadow-lg">
-                    <!-- Details will be inserted here -->
                 </div>
             </div>
 
-            <div id="result-error" class="bg-gradient-to-r from-red-50 to-pink-50 border-2 border-red-400 rounded-2xl p-8 shadow-xl hidden animate-zoom-in">
-                <div class="flex items-center">
-                    <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center mr-5 shadow-lg bounce-in">
-                        <i class="fas fa-times text-white text-3xl"></i>
+            <!-- Error State -->
+            <div id="result-error" class="bg-rose-50 border-2 border-rose-300 rounded-xl p-6 shadow-sm hidden">
+                <div class="flex items-start space-x-4">
+                    <div class="w-12 h-12 bg-rose-500 text-white rounded-xl flex items-center justify-center text-2xl shrink-0 shadow">
+                        <i class="fas fa-exclamation-triangle"></i>
                     </div>
-                    <div>
-                        <h3 class="text-2xl font-bold text-red-800">Error ❌</h3>
-                        <p id="error-message" class="text-red-700 text-lg"></p>
+                    <div class="flex-1">
+                        <span class="px-2.5 py-0.5 bg-rose-200 text-rose-900 text-xs font-bold rounded uppercase tracking-wider">Attendance Rejected</span>
+                        <h3 class="text-lg font-bold text-rose-900 mt-1">Verification Failed</h3>
+                        <p id="error-message" class="text-sm text-rose-800 mt-1 font-medium"></p>
+                        <p class="text-xs text-rose-600 mt-2">
+                            Please ensure you are scanning the current live QR code on the classroom projector screen. Rotating tokens expire every 30-90 seconds.
+                        </p>
+                        <button onclick="retryScanner()" class="mt-4 px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                            <i class="fas fa-redo mr-1.5"></i> Scan Again
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Manual Entry with Enhanced Design -->
-        <div class="bg-white rounded-2xl shadow-xl border-2 border-purple-100 p-8 mt-8 animate-fade-in-up stagger-delay-2">
-            <h3 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                <i class="fas fa-keyboard mr-3 text-purple-600"></i> Manual QR Data Entry (Testing)
-            </h3>
-            <form id="manual-form" onsubmit="submitManualQR(event)">
-                <textarea id="manual-qr" rows="5" 
-                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-                    placeholder='Paste QR data JSON here...'></textarea>
-                <button type="submit" class="mt-3 bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
-                    Submit
-                </button>
-            </form>
+        <!-- Manual QR Payload Entry (Testing & Direct Validation) -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div class="flex justify-between items-center cursor-pointer" onclick="toggleManualEntry()">
+                <h3 class="text-sm font-bold text-slate-800 flex items-center">
+                    <i class="fas fa-keyboard text-slate-400 mr-2"></i> Manual QR Token Submission (Backup / Testing)
+                </h3>
+                <i id="manual-chevron" class="fas fa-chevron-down text-xs text-slate-400"></i>
+            </div>
+            <div id="manual-entry-body" class="hidden mt-4 pt-4 border-t border-slate-100">
+                <p class="text-xs text-slate-500 mb-3">
+                    If camera access is restricted on your browser, paste the raw QR code JSON or token payload:
+                </p>
+                <form id="manual-form" onsubmit="submitManualQR(event)">
+                    <textarea id="manual-qr" rows="3" 
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder='{"token":"...","sid":"...","ts":1710000000000,"exp":1710000090000}'></textarea>
+                    <button type="submit" class="mt-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition">
+                        Validate Payload
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
 let html5QrcodeScanner = null;
 let studentLocation = null;
 
-// Get student's location on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Request geolocation permission
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-                studentLocation = {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy
-                };
-                console.log('Location captured:', studentLocation);
-            },
-            function(error) {
-                console.warn('Location permission denied or unavailable:', error.message);
-                // Continue without location - server will handle verification
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    }
-    
-    // Check for QR data in URL parameters
+    // Check for QR data in URL parameters (e.g. if scanned via device native camera app)
     const urlParams = new URLSearchParams(window.location.search);
     const qrData = urlParams.get('data');
     if (qrData) {
         processQRCode(qrData);
     }
 });
+
+function toggleManualEntry() {
+    const el = document.getElementById('manual-entry-body');
+    const chev = document.getElementById('manual-chevron');
+    el.classList.toggle('hidden');
+    chev.classList.toggle('fa-chevron-up');
+    chev.classList.toggle('fa-chevron-down');
+}
 
 function startScanner() {
     document.getElementById('start-btn').classList.add('hidden');
@@ -174,15 +181,15 @@ function startScanner() {
     html5QrcodeScanner.start(
         { facingMode: "environment" },
         {
-            fps: 20,
-            qrbox: { width: 400, height: 400 },
+            fps: 15,
+            qrbox: { width: 280, height: 280 },
             aspectRatio: 1.0
         },
         onScanSuccess,
         onScanFailure
     ).catch(err => {
-        console.error("Error starting scanner:", err);
-        alert("Error starting camera. Please ensure camera permission is granted.");
+        console.error("Camera error:", err);
+        alert("Camera error: Please ensure camera permission is allowed in your browser settings.");
         stopScanner();
     });
 }
@@ -196,23 +203,26 @@ function stopScanner() {
     }
 }
 
-function onScanSuccess(decodedText, decodedResult) {
-    console.log("QR Code detected:", decodedText);
+function retryScanner() {
+    document.getElementById('result-area').classList.add('hidden');
+    startScanner();
+}
+
+function onScanSuccess(decodedText) {
+    console.log("QR Code captured:", decodedText);
     stopScanner();
     processQRCode(decodedText);
 }
 
 function onScanFailure(error) {
-    // Ignore scan failures (happens continuously while scanning)
+    // Continuous scan frame failure - ignore
 }
 
 function processQRCode(qrData) {
     document.getElementById('scanner-overlay').classList.remove('hidden');
     
-    // Try to parse the QR data
     let parsedData;
     try {
-        // Check if it's a URL with data parameter
         if (qrData.includes('?data=')) {
             const url = new URL(qrData);
             const dataParam = url.searchParams.get('data');
@@ -221,29 +231,24 @@ function processQRCode(qrData) {
             parsedData = JSON.parse(qrData);
         }
     } catch (e) {
-        showError("Invalid QR code format");
+        showError("Invalid QR code format. Please ensure you are scanning an authentic AttendX QR code.");
         document.getElementById('scanner-overlay').classList.add('hidden');
         return;
     }
     
-    // Prepare request data with location
     const requestData = {
         qr_data: parsedData,
         location: studentLocation
     };
     
-    // Send to server
     fetch('/student/scan/process', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestData)
     })
     .then(response => response.json())
     .then(data => {
         document.getElementById('scanner-overlay').classList.add('hidden');
-        
         if (data.success) {
             showSuccess(data.message, data.attendance);
         } else {
@@ -252,7 +257,7 @@ function processQRCode(qrData) {
     })
     .catch(error => {
         document.getElementById('scanner-overlay').classList.add('hidden');
-        showError("Network error. Please try again.");
+        showError("Network connection error. Please try again.");
     });
 }
 
@@ -262,13 +267,23 @@ function showSuccess(message, attendance) {
     document.getElementById('result-error').classList.add('hidden');
     document.getElementById('result-message').textContent = message;
     
+    let verMethodBadge = '';
+    if (attendance.verification_method === 'webauthn_early') {
+        verMethodBadge = '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold"><i class="fas fa-fingerprint mr-1"></i> WebAuthn Early Verified</span>';
+    } else if (attendance.verification_method === 'webauthn_instant') {
+        verMethodBadge = '<span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-semibold"><i class="fas fa-fingerprint mr-1"></i> Instant Biometric Verified</span>';
+    } else {
+        verMethodBadge = '<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded font-semibold"><i class="fas fa-qrcode mr-1"></i> Standard Dynamic QR Verified</span>';
+    }
+
     let details = `
-        <div class="space-y-2">
-            <p><strong>Status:</strong> <span class="capitalize">${attendance.status}</span></p>
-            <p><strong>Class:</strong> ${attendance.class.code} - ${attendance.class.name}</p>
-            <p><strong>Time:</strong> ${new Date(attendance.scanned_at).toLocaleTimeString()}</p>
-            ${attendance.minutes_late > 0 ? `<p><strong>Minutes Late:</strong> ${attendance.minutes_late}</p>` : ''}
+        <div class="grid grid-cols-2 gap-2">
+            <div><span class="text-slate-400">Class:</span> <strong class="text-slate-900">${attendance.class.code} (${attendance.class.name})</strong></div>
+            <div><span class="text-slate-400">Status:</span> <strong class="capitalize ${attendance.status === 'present' ? 'text-emerald-600' : 'text-amber-600'}">${attendance.status}</strong></div>
+            <div><span class="text-slate-400">Timestamp:</span> <strong class="text-slate-900">${new Date(attendance.scanned_at).toLocaleTimeString()}</strong></div>
+            <div><span class="text-slate-400">Verification:</span> ${verMethodBadge}</div>
         </div>
+        ${attendance.minutes_late > 0 ? `<p class="mt-2 text-amber-700"><strong>Note:</strong> Recorded ${attendance.minutes_late} minutes after session start time.</p>` : ''}
     `;
     document.getElementById('result-details').innerHTML = details;
 }
@@ -282,7 +297,7 @@ function showError(message) {
 
 function submitManualQR(event) {
     event.preventDefault();
-    const qrData = document.getElementById('manual-qr').value;
+    const qrData = document.getElementById('manual-qr').value.trim();
     if (qrData) {
         processQRCode(qrData);
     }

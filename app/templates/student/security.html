@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Profile & Security - AttendX{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-50 text-slate-800">
+    <!-- Top Navigation -->
+    <header class="bg-navy-900 text-white shadow-md border-b border-navy-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center space-x-3">
+                    <a href="{{ url_for('student.dashboard') }}" class="text-blue-200 hover:text-white mr-2 transition">
+                        <i class="fas fa-arrow-left text-lg"></i>
+                    </a>
+                    <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white shadow">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight">Attend<span class="text-blue-400">X</span> Security</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs bg-navy-800 text-blue-300 px-3 py-1.5 rounded-full border border-navy-700">
+                        <i class="fas fa-fingerprint mr-1.5 text-blue-400"></i> FIDO2 / WebAuthn
+                    </span>
+                    <a href="{{ url_for('auth.logout') }}" class="text-xs bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition font-medium">
+                        <i class="fas fa-sign-out-alt mr-1"></i> Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Breadcrumbs / Tab Navigation -->
+        <div class="flex border-b border-slate-200 mb-8 space-x-4">
+            <a href="{{ url_for('student.dashboard') }}" class="py-3 px-4 text-sm font-medium text-slate-600 hover:text-blue-700">
+                <i class="fas fa-home mr-2"></i> Dashboard
+            </a>
+            <a href="{{ url_for('student.attendance') }}" class="py-3 px-4 text-sm font-medium text-slate-600 hover:text-blue-700">
+                <i class="fas fa-calendar-check mr-2"></i> My Attendance
+            </a>
+            <a href="{{ url_for('student.scan') }}" class="py-3 px-4 text-sm font-medium text-slate-600 hover:text-blue-700">
+                <i class="fas fa-qrcode mr-2"></i> Scan QR
+            </a>
+            <a href="{{ url_for('student.timetable') }}" class="py-3 px-4 text-sm font-medium text-slate-600 hover:text-blue-700">
+                <i class="fas fa-calendar-alt mr-2"></i> Timetable
+            </a>
+            <a href="{{ url_for('student.security') }}" class="py-3 px-4 text-sm font-semibold text-blue-600 border-b-2 border-blue-600">
+                <i class="fas fa-shield-alt mr-2"></i> Profile & Security
+            </a>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left: Student Profile Card -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="text-center pb-6 border-b border-slate-100">
+                    <div class="w-20 h-20 bg-gradient-to-tr from-navy-800 to-blue-600 text-white rounded-2xl mx-auto flex items-center justify-center text-3xl font-bold shadow-md mb-4">
+                        {{ current_user.first_name[0] }}{{ current_user.last_name[0] }}
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-900">{{ current_user.full_name }}</h2>
+                    <p class="text-sm text-slate-500 font-mono mt-0.5">{{ student.student_id }}</p>
+                    <span class="inline-block mt-3 px-3 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-200">
+                        Student Account
+                    </span>
+                </div>
+
+                <div class="mt-6 space-y-4 text-sm">
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span class="flex items-center"><i class="fas fa-envelope w-5 text-slate-400"></i> Email</span>
+                        <span class="font-medium text-slate-900">{{ current_user.email }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span class="flex items-center"><i class="fas fa-book w-5 text-slate-400"></i> Major</span>
+                        <span class="font-medium text-slate-900">{{ student.major }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span class="flex items-center"><i class="fas fa-calendar w-5 text-slate-400"></i> Enrollment</span>
+                        <span class="font-medium text-slate-900">{{ student.enrollment_year }}</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span class="flex items-center"><i class="fas fa-shield-alt w-5 text-slate-400"></i> Biometrics</span>
+                        <span class="font-semibold {% if credentials %}text-emerald-600{% else %}text-amber-600{% endif %}">
+                            {% if credentials %}{{ credentials|length }} Registered{% else %}Not Registered{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Device Biometric Hardware Support Indicator -->
+                <div id="biometric-support-card" class="mt-6 p-4 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                    <div class="flex items-center space-x-2 font-semibold text-slate-700 mb-1">
+                        <i id="support-icon" class="fas fa-circle-notch fa-spin text-blue-600"></i>
+                        <span id="support-title">Detecting Biometric Hardware...</span>
+                    </div>
+                    <p id="support-desc" class="text-slate-500">Checking device compatibility for Touch ID, Windows Hello, or Android fingerprint sensor.</p>
+                </div>
+            </div>
+
+            <!-- Right: WebAuthn Biometric Registration & Credentials -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Register Fingerprint Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-5 border-b border-slate-100 gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900 flex items-center">
+                                <i class="fas fa-fingerprint text-blue-600 mr-2 text-xl"></i>
+                                Register Biometric Authenticator
+                            </h3>
+                            <p class="text-sm text-slate-500 mt-1">
+                                Secure WebAuthn/FIDO2 fingerprint reader or device passkey for the 5-minute early verification window.
+                            </p>
+                        </div>
+                        <button id="register-btn" onclick="registerBiometric()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition flex items-center shadow-sm whitespace-nowrap">
+                            <i class="fas fa-plus-circle mr-2"></i> Register Sensor
+                        </button>
+                    </div>
+
+                    <!-- Alert / Status Banner -->
+                    <div id="registration-status" class="hidden mt-4 p-4 rounded-lg text-sm"></div>
+
+                    <!-- Registered Credentials List -->
+                    <div class="mt-6">
+                        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Your Registered Authenticator(s)</h4>
+                        {% if credentials %}
+                            <div class="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+                                {% for cred in credentials %}
+                                <div class="p-4 flex items-center justify-between hover:bg-slate-50 transition">
+                                    <div class="flex items-center space-x-3">
+                                        <div class="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-lg">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-semibold text-slate-900 text-sm">{{ cred.nickname }}</p>
+                                            <p class="text-xs text-slate-400">Added: {{ cred.created_at.strftime('%b %d, %Y') }} • Last used: {{ cred.last_used_at.strftime('%b %d, %H:%M') if cred.last_used_at else 'Never' }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full border border-emerald-200">
+                                            Active
+                                        </span>
+                                        <button onclick="removeCredential('{{ cred.id }}')" class="text-slate-400 hover:text-red-600 p-2 text-sm transition" title="Delete Authenticator">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-8 bg-slate-50 rounded-lg border border-dashed border-slate-300">
+                                <i class="fas fa-fingerprint text-slate-300 text-4xl mb-2"></i>
+                                <p class="text-slate-600 font-medium text-sm">No biometric credentials registered yet</p>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                                    Click "Register Sensor" above to link your phone's fingerprint sensor, laptop Touch ID, or Windows Hello.
+                                </p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Test Sensor & Security Policy Details -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-base font-bold text-slate-900 mb-3 flex items-center">
+                        <i class="fas fa-lock text-slate-500 mr-2"></i> Biometric Privacy & Security Policy
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <p class="font-semibold text-slate-800 mb-1"><i class="fas fa-check text-blue-600 mr-1"></i> Zero Biometric Storage</p>
+                            <p>AttendX uses the W3C WebAuthn standard. Raw fingerprint images never leave your hardware. Only cryptographic public key signatures are validated.</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <p class="font-semibold text-slate-800 mb-1"><i class="fas fa-clock text-blue-600 mr-1"></i> 5-Minute Window Binding</p>
+                            <p>Pre-verifying 5 minutes prior to class proves your authentic identity ahead of time. Attendance is recorded only after the rotating QR is scanned.</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <p class="font-semibold text-slate-800 mb-1"><i class="fas fa-shield-virus text-blue-600 mr-1"></i> Replay & Proxy Prevention</p>
+                            <p>Challenge nonces and origin validation prevent replay attacks and proxy scanning between peers.</p>
+                        </div>
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                            <p class="font-semibold text-slate-800 mb-1"><i class="fas fa-universal-access text-blue-600 mr-1"></i> Accessible Fallback</p>
+                            <p>Students using devices without biometric sensors can complete standard verification using institutional credentials.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Base64URL helper utilities for WebAuthn
+function base64urlToUint8Array(base64url) {
+    const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
+    const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+function uint8ArrayToBase64url(array) {
+    const base64 = btoa(String.fromCharCode.apply(null, array));
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+// Detect WebAuthn Platform Authenticator availability
+document.addEventListener('DOMContentLoaded', async () => {
+    const supportCard = document.getElementById('biometric-support-card');
+    const supportIcon = document.getElementById('support-icon');
+    const supportTitle = document.getElementById('support-title');
+    const supportDesc = document.getElementById('support-desc');
+
+    if (window.PublicKeyCredential) {
+        try {
+            const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+            if (available) {
+                supportIcon.className = 'fas fa-check-circle text-emerald-500';
+                supportTitle.textContent = 'Biometric Authenticator Available';
+                supportDesc.textContent = 'Your device supports platform fingerprint, Touch ID, or Face ID verification.';
+            } else {
+                supportIcon.className = 'fas fa-info-circle text-blue-500';
+                supportTitle.textContent = 'WebAuthn Supported (Security Key / PIN)';
+                supportDesc.textContent = 'Hardware security keys or device PIN available. You can also use standard fallback.';
+            }
+        } catch (e) {
+            supportIcon.className = 'fas fa-shield-alt text-blue-500';
+            supportTitle.textContent = 'WebAuthn Ready';
+        }
+    } else {
+        supportIcon.className = 'fas fa-exclamation-triangle text-amber-500';
+        supportTitle.textContent = 'WebAuthn Not Supported in this browser';
+        supportDesc.textContent = 'Use standard QR scanning or login verification fallback.';
+    }
+});
+
+// Register WebAuthn Credential
+async function registerBiometric() {
+    const statusEl = document.getElementById('registration-status');
+    const btn = document.getElementById('register-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Registering...';
+
+    statusEl.className = 'mt-4 p-4 rounded-lg text-sm bg-blue-50 text-blue-800 border border-blue-200';
+    statusEl.innerHTML = '<i class="fas fa-fingerprint fa-bounce mr-2"></i> Please touch your device fingerprint sensor or passkey prompt...';
+    statusEl.classList.remove('hidden');
+
+    try {
+        // Step 1: Request options from server
+        const optRes = await fetch('/webauthn/register/options', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nickname: navigator.userAgent.includes('Mobile') ? 'Mobile Fingerprint' : 'Laptop Biometrics' })
+        });
+        const optData = await optRes.json();
+
+        if (!optData.success) {
+            throw new Error(optData.error || 'Failed to initialize biometric registration');
+        }
+
+        const options = optData.options;
+
+        // Convert challenge and user.id from base64url to Uint8Array
+        options.challenge = base64urlToUint8Array(options.challenge);
+        options.user.id = base64urlToUint8Array(options.user.id);
+        if (options.excludeCredentials) {
+            options.excludeCredentials.forEach(cred => {
+                cred.id = base64urlToUint8Array(cred.id);
+            });
+        }
+
+        // Step 2: Invoke browser WebAuthn API
+        const credential = await navigator.credentials.create({ publicKey: options });
+
+        // Step 3: Format response for server verification
+        const credentialJSON = {
+            id: credential.id,
+            rawId: uint8ArrayToBase64url(new Uint8Array(credential.rawId)),
+            type: credential.type,
+            response: {
+                clientDataJSON: uint8ArrayToBase64url(new Uint8Array(credential.response.clientDataJSON)),
+                attestationObject: uint8ArrayToBase64url(new Uint8Array(credential.response.attestationObject))
+            }
+        };
+
+        // Step 4: Submit to server
+        const verifyRes = await fetch('/webauthn/register/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                credential: credentialJSON,
+                nickname: navigator.userAgent.includes('Mobile') ? 'Mobile Biometrics' : 'Platform Passkey'
+            })
+        });
+
+        const verifyData = await verifyRes.json();
+        if (verifyData.success) {
+            statusEl.className = 'mt-4 p-4 rounded-lg text-sm bg-emerald-50 text-emerald-800 border border-emerald-200';
+            statusEl.innerHTML = '<i class="fas fa-check-circle mr-2"></i> ' + verifyData.message;
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            throw new Error(verifyData.error || 'Verification failed on server');
+        }
+    } catch (err) {
+        console.error('WebAuthn Error:', err);
+        statusEl.className = 'mt-4 p-4 rounded-lg text-sm bg-red-50 text-red-800 border border-red-200';
+        statusEl.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i> ' + (err.message || 'Registration cancelled or failed');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-plus-circle mr-2"></i> Register Sensor';
+    }
+}
+
+// Remove Credential
+async function removeCredential(credId) {
+    if (!confirm('Are you sure you want to revoke this biometric authenticator?')) return;
+    try {
+        const res = await fetch(`/webauthn/credentials/${credId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.error || 'Could not delete credential');
+        }
+    } catch (e) {
+        alert('Network error while removing credential');
+    }
+}
+</script>
+{% endblock %}

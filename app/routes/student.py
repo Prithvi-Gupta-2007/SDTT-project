@@ -71,17 +71,36 @@ def dashboard():
         
         attendance_rate = round((attended_sessions / total_sessions * 100)) if total_sessions > 0 else 0
         
+        # Calculate classes needed to reach 75% threshold
+        import math
+        needed_classes = 0
+        if total_sessions > 0 and attendance_rate < 75:
+            # Formula: (attended + X) / (total + X) >= 0.75 => X >= (0.75 * total - attended) / 0.25
+            needed_classes = max(0, math.ceil((0.75 * total_sessions - attended_sessions) / 0.25))
+            
         # Get today's session if any
         today_session = ClassSession.query.filter_by(
             class_instance_id=class_instance.id,
             date=today
         ).first()
         
-        # Check if there's an active session today
         has_active_session = today_session and today_session.status == 'active' if today_session else False
+        is_early_open = today_session.is_early_verification_open(datetime.now()) if today_session else False
         
-        # Class meets today if scheduled OR has an active session
-        meets_today = scheduled_today or has_active_session
+        # Check if already marked today
+        already_marked = False
+        has_early_verified = False
+        if today_session:
+            already_marked = AttendanceRecord.query.filter_by(
+                session_id=today_session.id,
+                student_id=current_user.id
+            ).first() is not None
+            
+            from app.utils.webauthn_service import check_student_early_verification
+            bio_check = check_student_early_verification(current_user.id, today_session.id)
+            has_early_verified = bio_check.get('verified', False)
+        
+        meets_today = scheduled_today or has_active_session or (today_session is not None)
         
         classes.append({
             'id': class_instance.id,
@@ -93,9 +112,25 @@ def dashboard():
             'attendance_rate': attendance_rate,
             'total_sessions': total_sessions,
             'attended_sessions': attended_sessions,
+            'missed_sessions': max(0, total_sessions - attended_sessions),
+            'needed_classes': needed_classes,
             'today_session': today_session,
-            'has_active_session': has_active_session
+            'has_active_session': has_active_session,
+            'is_early_open': is_early_open,
+            'already_marked': already_marked,
+            'has_early_verified': has_early_verified
         })
+    
+    # Calculate overall aggregates
+    total_conducted = sum(c['total_sessions'] for c in classes)
+    total_attended = sum(c['attended_sessions'] for c in classes)
+    total_missed = sum(c['missed_sessions'] for c in classes)
+    overall_rate = round((total_attended / total_conducted * 100)) if total_conducted > 0 else 100
+    
+    low_attendance_warnings = [c for c in classes if c['total_sessions'] > 0 and c['attendance_rate'] < 75]
+    
+    # Check for any upcoming or active class right now with early verification open
+    active_early_class = next((c for c in classes if c['is_early_open'] and not c['already_marked']), None)
     
     # Get today's attendance stats
     today_stats = {
@@ -127,10 +162,17 @@ def dashboard():
     return render_template('student/dashboard.html',
         student=student,
         classes=classes,
+        overall_attendance=overall_rate,
+        total_conducted=total_conducted,
+        total_attended=total_attended,
+        total_missed=total_missed,
+        low_attendance_warnings=low_attendance_warnings,
+        active_early_class=active_early_class,
         today_stats=today_stats,
         notifications=notifications,
         current_time=datetime.now()
     )
+
 
 
 @student_bp.route('/classes')
@@ -393,6 +435,15 @@ def process_scan():
         minutes_late = int((now - session_start).total_seconds() / 60)
         is_late = minutes_late > 5
         
+        # Determine verification method (check 5-minute early biometric verification)
+        from app.utils.webauthn_service import check_student_early_verification, consume_early_verification
+        early_bio_check = check_student_early_verification(current_user.id, session_id)
+        if early_bio_check.get('verified'):
+            verification_method = 'webauthn_early'
+            consume_early_verification(current_user.id, session_id)
+        else:
+            verification_method = data.get('verification_method', 'qr_standard')
+
         # Create attendance record
         status = 'late' if is_late else 'present'
         
@@ -403,6 +454,7 @@ def process_scan():
             scanned_at=now,
             status=status,
             minutes_late=minutes_late if is_late else 0,
+            verification_method=verification_method,
             device_fingerprint=request.headers.get('User-Agent', 'unknown'),
             ip_address=request.remote_addr,
             latitude=location_data.get('latitude') if location_data else None,
@@ -416,7 +468,7 @@ def process_scan():
         # Update session count
         session.attendance_count += 1
         
-        # Create notification
+        # Create notification (using extra_data, not reserved keyword metadata)
         class_instance = session.class_instance
         course = class_instance.course
         
@@ -425,12 +477,13 @@ def process_scan():
             user_id=current_user.id,
             type='attendance_recorded',
             title='Attendance Recorded',
-            message=f'Marked {status} for {course.code}',
+            message=f'Marked {status} for {course.code} ({verification_method})',
             link='/student/attendance',
             session_id=session_id,
-            metadata=json.dumps({
+            extra_data=json.dumps({
                 'className': course.code,
                 'status': status,
+                'verificationMethod': verification_method,
                 'minutesLate': minutes_late if is_late else 0
             })
         )
@@ -449,18 +502,21 @@ def process_scan():
             'scanned_at': now.isoformat(),
             'attendanceCount': session.attendance_count,
             'newRecord': {
+                'id': attendance.id,
                 'name': current_user.full_name,
                 'student_id': student.student_id if student else current_user.email,
                 'status': status,
+                'verification_method': verification_method,
                 'time': now.strftime('%H:%M:%S')
             }
         }, room=f'session-{session_id}')
         
         return jsonify({
             'success': True,
-            'message': f'Attendance marked: {status}',
+            'message': f'Attendance marked: {status.capitalize()} (Verified: {verification_method})',
             'attendance': {
                 'status': status,
+                'verification_method': verification_method,
                 'scanned_at': now.isoformat(),
                 'minutes_late': minutes_late if is_late else 0,
                 'class': {
@@ -469,6 +525,7 @@ def process_scan():
                 }
             }
         })
+
         
     except Exception as e:
         db.session.rollback()
@@ -569,3 +626,88 @@ def update_profile():
         flash(f'Error updating profile: {str(e)}', 'error')
     
     return redirect(url_for('student.profile'))
+
+
+@student_bp.route('/timetable')
+@login_required
+@student_required
+def timetable():
+    """Student weekly timetable and class schedule"""
+    student = Student.query.filter_by(user_id=current_user.id).first()
+    enrollments = Enrollment.query.filter_by(student_id=current_user.id, status='active').all()
+    
+    weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    schedule_by_day = {day: [] for day in weekdays}
+    
+    today = date.today()
+    today_name = today.strftime('%A')
+    now = datetime.now()
+    
+    for enrollment in enrollments:
+        ci = enrollment.class_instance
+        course = ci.course
+        prof_user = User.query.get(ci.professor_id)
+        days = ci.days_list
+        
+        # Check if there is an active or upcoming session today
+        today_session = ClassSession.query.filter_by(
+            class_instance_id=ci.id,
+            date=today
+        ).first()
+        
+        for day in days:
+            if day in schedule_by_day:
+                is_today = (day == today_name)
+                early_open = False
+                has_active = False
+                if is_today and today_session:
+                    has_active = (today_session.status == 'active')
+                    early_open = today_session.is_early_verification_open(now)
+                
+                schedule_by_day[day].append({
+                    'class_id': ci.id,
+                    'code': course.code,
+                    'name': course.name,
+                    'room': ci.room_location or 'TBD',
+                    'start_time': ci.start_time,
+                    'end_time': ci.end_time,
+                    'professor_name': prof_user.full_name if prof_user else 'Professor',
+                    'session_id': today_session.id if today_session else None,
+                    'has_active_session': has_active,
+                    'early_open': early_open
+                })
+                
+    # Sort classes by start_time for each day
+    for day in weekdays:
+        schedule_by_day[day].sort(key=lambda x: x['start_time'])
+        
+    return render_template('student/timetable.html',
+        schedule_by_day=schedule_by_day,
+        today_name=today_name,
+        weekdays=weekdays
+    )
+
+
+@student_bp.route('/security')
+@login_required
+@student_required
+def security():
+    """Biometric registration & security settings for student"""
+    from app.models import WebAuthnCredential
+    credentials = WebAuthnCredential.query.filter_by(user_id=current_user.id, is_active=True).all()
+    student = Student.query.filter_by(user_id=current_user.id).first()
+    
+    return render_template('student/security.html',
+        credentials=credentials,
+        student=student
+    )
+
+
+@student_bp.route('/notifications')
+@login_required
+@student_required
+def notifications():
+    """In-app notifications list for student"""
+    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
+    return render_template('student/notifications.html', notifications=notifs)
+

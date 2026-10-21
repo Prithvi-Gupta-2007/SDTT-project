@@ -48,12 +48,15 @@ def create_app(config_class=Config):
     from app.routes.student import student_bp
     from app.routes.professor import professor_bp
     from app.routes.api import api_bp
+    from app.routes.webauthn import webauthn_bp
     
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(main_bp)
     app.register_blueprint(student_bp, url_prefix='/student')
     app.register_blueprint(professor_bp, url_prefix='/professor')
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(webauthn_bp, url_prefix='/webauthn')
+
     
     # Create database tables
     with app.app_context():
