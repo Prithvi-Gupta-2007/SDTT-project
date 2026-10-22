@@ -25,7 +25,16 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     
     # Database settings
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///attendance.db')
+    _db_url = os.environ.get('DATABASE_URL')
+    if _db_url:
+        if _db_url.startswith('postgres://'):
+            SQLALCHEMY_DATABASE_URI = _db_url.replace('postgres://', 'postgresql://', 1)
+        else:
+            SQLALCHEMY_DATABASE_URI = _db_url
+    elif os.environ.get('VERCEL') == '1' or os.environ.get('VERCEL') == 'true':
+        SQLALCHEMY_DATABASE_URI = 'sqlite:////tmp/attendance.db'
+    else:
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///attendance.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # JWT settings

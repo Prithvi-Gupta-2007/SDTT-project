@@ -852,6 +852,41 @@
         {% endif %}
     {% endwith %}
 
+    <!-- Universal Floating Back Button -->
+    <div id="universal-back-nav" class="fixed bottom-6 left-6 z-50 transition-all duration-300" style="display: none;">
+        <button onclick="handleUniversalBack()" title="Go back to previous page"
+            class="group flex items-center space-x-2 bg-white/95 dark:bg-slate-800/95 hover:bg-white dark:hover:bg-slate-800 backdrop-blur-md px-4 py-2.5 rounded-full shadow-lg hover:shadow-2xl border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 font-bold text-xs transition-all duration-200 transform hover:-translate-x-1 active:scale-95 cursor-pointer">
+            <i class="fas fa-arrow-left text-blue-600 dark:text-blue-400 group-hover:-translate-x-1 transition-transform"></i>
+            <span>Back</span>
+        </button>
+    </div>
+
+    <script>
+    function handleUniversalBack() {
+        if (window.history.length > 1 && document.referrer && document.referrer.indexOf(window.location.host) !== -1) {
+            window.history.back();
+        } else {
+            const p = window.location.pathname;
+            if (p.includes('/student/') && p !== '/student/dashboard') {
+                window.location.href = '/student/dashboard';
+            } else if (p.includes('/professor/') && p !== '/professor/dashboard') {
+                window.location.href = '/professor/dashboard';
+            } else {
+                window.location.href = '/';
+            }
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const p = window.location.pathname;
+        const btn = document.getElementById('universal-back-nav');
+        // Show on any page except the pure home landing page
+        if (btn && p !== '/' && p !== '') {
+            btn.style.display = 'block';
+        }
+    });
+    </script>
+
     {% block content %}{% endblock %}
 
     <!-- Global Scripts -->

@@ -7,13 +7,16 @@ from datetime import datetime, date
 def seed_initial_data():
     """Seed the database with initial data"""
     from app import db
-    from app.models import Department, AcademicPeriod, Course
+    from app.models import (
+        Department, AcademicPeriod, Course, User, Professor, 
+        Student, ClassInstance, ClassSession, Enrollment
+    )
     
     # Check if data already exists
-    if Department.query.first():
+    if Department.query.first() and User.query.filter_by(email='professor@acem.ac.in').first():
         return
     
-    print("🌱 Seeding initial data...")
+    print("[INFO] Seeding initial data...")
     
     # Create departments
     departments = [
@@ -70,4 +73,102 @@ def seed_initial_data():
         db.session.add(course)
     
     db.session.commit()
-    print("✅ Initial data seeded successfully!")
+
+    # Seed default test professor and student if needed
+    from app.models import User, Student, Professor, ClassInstance, ClassSession, Enrollment
+    from werkzeug.security import generate_password_hash
+    import json
+    import random
+    import string
+    from datetime import timedelta
+
+    if not User.query.filter_by(email='professor@acem.ac.in').first():
+        prof_user = User(
+            id='user-prof-001',
+            email='professor@acem.ac.in',
+            password_hash=generate_password_hash('password123'),
+            first_name='John',
+            last_name='Smith',
+            role='professor',
+            is_active=True
+        )
+        db.session.add(prof_user)
+        db.session.flush()
+
+        dept = Department.query.first()
+        professor = Professor(
+            id='prof-profile-001',
+            user_id='user-prof-001',
+            employee_id='EMP001',
+            department_id=dept.id if dept else None,
+            title='Prof.'
+        )
+        db.session.add(professor)
+
+        student_user = User(
+            id='user-stu-001',
+            email='student@acem.ac.in',
+            password_hash=generate_password_hash('password123'),
+            first_name='Jane',
+            last_name='Doe',
+            role='student',
+            is_active=True
+        )
+        db.session.add(student_user)
+        db.session.flush()
+
+        student = Student(
+            id='stu-profile-001',
+            user_id='user-stu-001',
+            student_id='STU001',
+            major='Computer Science',
+            enrollment_year=2024
+        )
+        db.session.add(student)
+        db.session.commit()
+
+        # Seed sample class
+        period = AcademicPeriod.query.filter_by(is_current=True).first()
+        course = Course.query.first()
+        if period and course:
+            today = date.today()
+            class_code = f"{course.code}-{''.join(random.choices(string.ascii_uppercase, k=6))}"
+            class_instance = ClassInstance(
+                course_id=course.id,
+                professor_id=prof_user.id,
+                academic_period_id=period.id,
+                section_number=1,
+                class_code=class_code,
+                days_of_week=json.dumps(['Monday', 'Wednesday', 'Friday']),
+                start_time='09:00',
+                end_time='10:00',
+                first_class_date=today - timedelta(days=30),
+                last_class_date=today + timedelta(days=60),
+                room_location='Room 101',
+                max_students=50,
+                is_active=True
+            )
+            db.session.add(class_instance)
+            db.session.flush()
+
+            enrollment = Enrollment(
+                student_id=student_user.id,
+                class_instance_id=class_instance.id,
+                status='active'
+            )
+            db.session.add(enrollment)
+
+            for i in range(5):
+                session_date = today - timedelta(days=i*2)
+                session = ClassSession(
+                    class_instance_id=class_instance.id,
+                    session_number=5-i,
+                    date=session_date,
+                    start_time='09:00',
+                    end_time='10:00',
+                    status='completed' if i > 0 else 'scheduled'
+                )
+                db.session.add(session)
+            db.session.commit()
+
+    print("[OK] Initial data seeded successfully!")

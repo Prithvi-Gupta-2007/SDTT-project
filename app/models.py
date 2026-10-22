@@ -75,7 +75,15 @@ class User(UserMixin, db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     """Load user by ID for Flask-Login"""
-    return User.query.get(user_id)
+    user = User.query.get(user_id)
+    if not user:
+        try:
+            from app.utils.seed_data import seed_initial_data
+            seed_initial_data()
+            user = User.query.get(user_id)
+        except Exception:
+            pass
+    return user
 
 
 class Student(db.Model):

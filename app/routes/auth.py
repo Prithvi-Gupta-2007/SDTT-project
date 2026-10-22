@@ -11,6 +11,48 @@ import uuid
 auth_bp = Blueprint('auth', __name__)
 
 
+@auth_bp.route('/demo/professor')
+def demo_professor():
+    """1-Click direct login for professor demo"""
+    user = User.query.filter_by(email='professor@acem.ac.in').first()
+    if not user:
+        try:
+            from app.utils.seed_data import seed_initial_data
+            seed_initial_data()
+            user = User.query.filter_by(email='professor@acem.ac.in').first()
+        except Exception as e:
+            print(f"Error seeding user: {e}")
+            
+    if user:
+        login_user(user, remember=True)
+        flash(f'Logged in as Demo Professor ({user.full_name})!', 'success')
+        return redirect(url_for('professor.dashboard'))
+    
+    flash('Demo professor account could not be initialized.', 'error')
+    return redirect(url_for('auth.professor_login'))
+
+
+@auth_bp.route('/demo/student')
+def demo_student():
+    """1-Click direct login for student demo"""
+    user = User.query.filter_by(email='student@acem.ac.in').first()
+    if not user:
+        try:
+            from app.utils.seed_data import seed_initial_data
+            seed_initial_data()
+            user = User.query.filter_by(email='student@acem.ac.in').first()
+        except Exception as e:
+            print(f"Error seeding user: {e}")
+            
+    if user:
+        login_user(user, remember=True)
+        flash(f'Logged in as Demo Student ({user.full_name})!', 'success')
+        return redirect(url_for('student.dashboard'))
+        
+    flash('Demo student account could not be initialized.', 'error')
+    return redirect(url_for('auth.student_login'))
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page for both students and professors"""

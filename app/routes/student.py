@@ -28,6 +28,8 @@ def student_required(f):
     return decorated_function
 
 
+@student_bp.route('')
+@student_bp.route('/')
 @student_bp.route('/dashboard')
 @login_required
 @student_required

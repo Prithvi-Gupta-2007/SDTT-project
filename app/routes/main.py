@@ -18,6 +18,18 @@ def index():
     return render_template('main/index.html')
 
 
+@main_bp.route('/student')
+@main_bp.route('/student/')
+def student_shortcut():
+    return redirect(url_for('student.dashboard'))
+
+
+@main_bp.route('/professor')
+@main_bp.route('/professor/')
+def professor_shortcut():
+    return redirect(url_for('professor.dashboard'))
+
+
 @main_bp.route('/about')
 def about():
     """About page"""

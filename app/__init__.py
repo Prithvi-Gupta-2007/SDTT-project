@@ -28,7 +28,10 @@ def create_app(config_class=Config):
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
-    socketio.init_app(app, cors_allowed_origins="*", async_mode='eventlet')
+    import os
+    is_vercel = os.environ.get('VERCEL') in ('1', 'true', True)
+    async_mode = 'threading' if is_vercel else 'eventlet'
+    socketio.init_app(app, cors_allowed_origins="*", async_mode=async_mode)
     CORS(app)
     
     # Initialize email service

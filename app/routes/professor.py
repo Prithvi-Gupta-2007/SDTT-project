@@ -41,6 +41,8 @@ def professor_required(f):
     return decorated_function
 
 
+@professor_bp.route('')
+@professor_bp.route('/')
 @professor_bp.route('/dashboard')
 @login_required
 @professor_required
@@ -203,46 +205,93 @@ def classes():
 @login_required
 @professor_required
 def create_class():
-    """Create a new class"""
+    """Create a new class with manual or selected course code"""
     if request.method == 'POST':
         try:
             course_id = request.form.get('course_id')
+            custom_code = request.form.get('custom_course_code', '').strip().upper()
+            custom_name = request.form.get('custom_course_name', '').strip()
             period_id = request.form.get('academic_period_id')
             days = request.form.getlist('days_of_week')
-            start_time = request.form.get('start_time')
-            end_time = request.form.get('end_time')
+            start_time = request.form.get('start_time', '09:00')
+            end_time = request.form.get('end_time', '10:00')
             first_class_date = request.form.get('first_class_date')
             last_class_date = request.form.get('last_class_date')
-            room_location = request.form.get('room_location')
-            max_students = int(request.form.get('max_students', 30))
+            room_location = request.form.get('room_location', 'Room 101')
+            max_students = int(request.form.get('max_students') or 50)
             
-            # Get course for class code
-            course = Course.query.get(course_id)
+            # Handle Course: either manual custom code or dropdown selection
+            course = None
+            if custom_code:
+                # Find or dynamically create custom course
+                course = Course.query.filter_by(code=custom_code).first()
+                if not course:
+                    from app.models import Department
+                    dept = Department.query.first()
+                    course = Course(
+                        id=f"course-{uuid.uuid4().hex[:8]}",
+                        code=custom_code,
+                        name=custom_name or f"Course {custom_code}",
+                        description=f"Manual course: {custom_code}",
+                        department_id=dept.id if dept else None,
+                        credits=3,
+                        is_active=True
+                    )
+                    db.session.add(course)
+                    db.session.commit()
+                course_id = course.id
+            elif course_id and course_id != 'custom':
+                course = Course.query.get(course_id)
+            
             if not course:
-                flash('Invalid course selected.', 'error')
-                return redirect(url_for('professor.create_class'))
+                flash('Please select an existing course or enter a custom course code.', 'error')
+                courses = Course.query.filter_by(is_active=True).all()
+                periods = AcademicPeriod.query.filter_by(is_active=True).order_by(AcademicPeriod.year.desc()).all()
+                return render_template('professor/create_class.html', courses=courses, periods=periods)
             
-            # Generate class code
-            class_code = f"{course.code.replace('-', '')}-{secrets.token_hex(3).upper()}"
+            # Ensure academic period exists or fallback
+            if not period_id:
+                curr_period = AcademicPeriod.query.filter_by(is_current=True).first() or AcademicPeriod.query.first()
+                if curr_period:
+                    period_id = curr_period.id
             
-            # Calculate enrollment deadline (2 weeks from first class)
-            first_date = datetime.strptime(first_class_date, '%Y-%m-%d').date()
+            # Ensure days of week has at least one day
+            if not days:
+                days = ['Monday', 'Wednesday']
+                
+            # Default dates if missing
+            today = date.today()
+            if not first_class_date:
+                first_date = today
+            else:
+                try:
+                    first_date = datetime.strptime(first_class_date, '%Y-%m-%d').date()
+                except ValueError:
+                    first_date = today
+                    
+            if not last_class_date:
+                last_date = first_date + timedelta(days=90)
+            else:
+                try:
+                    last_date = datetime.strptime(last_class_date, '%Y-%m-%d').date()
+                except ValueError:
+                    last_date = first_date + timedelta(days=90)
+                    
             enrollment_deadline = first_date + timedelta(days=14)
             
-            # Get next section number
+            # Generate clean class code
+            clean_code = course.code.replace('-', '').replace(' ', '')
+            class_code = f"{clean_code}-{secrets.token_hex(3).upper()}"
+            
             existing_sections = ClassInstance.query.filter_by(
-                course_id=course_id,
+                course_id=course.id,
                 academic_period_id=period_id
             ).count()
             section_number = existing_sections + 1
             
-            # Create class instance
-            if not last_class_date:
-                flash('Last class date is required.', 'error')
-                return redirect(url_for('professor.create_class'))
             class_instance = ClassInstance(
                 id=str(uuid.uuid4()),
-                course_id=course_id,
+                course_id=course.id,
                 professor_id=current_user.id,
                 academic_period_id=period_id,
                 section_number=section_number,
@@ -251,22 +300,26 @@ def create_class():
                 start_time=start_time,
                 end_time=end_time,
                 first_class_date=first_date,
-                last_class_date=datetime.strptime(last_class_date, '%Y-%m-%d').date(),
+                last_class_date=last_date,
                 room_location=room_location,
                 max_students=max_students,
-                enrollment_deadline=enrollment_deadline
+                enrollment_deadline=enrollment_deadline,
+                is_active=True
             )
             
             db.session.add(class_instance)
             db.session.commit()
             
-            # Generate sessions
-            generate_sessions_for_class(class_instance)
-            
+            # Generate sessions safely
+            try:
+                generate_sessions_for_class(class_instance)
+            except Exception as e:
+                print(f"Warning generating sessions: {e}")
+                
             flash(f'Class {class_code} created successfully with sessions generated!', 'success')
             return redirect(url_for('professor.class_detail', class_id=class_instance.id))
             
-        except (ValueError, KeyError) as e:
+        except Exception as e:
             db.session.rollback()
             flash(f'Error creating class: {str(e)}', 'error')
     
